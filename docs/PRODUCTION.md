@@ -307,6 +307,29 @@ Complete before sharing with real users or executives.
 
 ---
 
+## Phase 5b — CI/CD deploy gate (required)
+
+Before treating a commit as production-ready, GitHub Actions must pass:
+
+| Job | Checks |
+|-----|--------|
+| **Quality** | Lint, typecheck, unit tests, build |
+| **Integration** | Migrate, seed, feature suite (~28 cases), HTTP smoke tests |
+| **Deploy gate** | Both jobs green |
+
+Details: [CI_CD.md](./CI_CD.md)
+
+**Recommended:** enable branch protection on `main` requiring the **Deploy gate** status check.
+
+```bash
+# Run the same gates locally
+npm run test
+npm run test:features   # needs seeded Postgres + Redis
+npm run test:smoke      # needs API + worker running
+```
+
+---
+
 ## Phase 6 — Verify production
 
 ### Smoke test script
@@ -420,6 +443,7 @@ OPENAI_API_KEY=sk-...
 
 ## Related docs
 
+- [CI_CD.md](./CI_CD.md) — automated testing and deploy gate
 - [DEPLOYMENT.md](./DEPLOYMENT.md) — condensed reference + architecture diagram
 - [architecture.md](./architecture.md) — system design
 - [governance.md](./governance.md) — RBAC and review rules

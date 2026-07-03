@@ -13,6 +13,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run build -w @infraops/shared -w @infraops/ai-tools && npm run db:generate -w @infraops/api && npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:features": "npm run test:features -w @infraops/worker",
+    "test:smoke": "node scripts/ci/smoke-api.mjs",
     "db:generate": "npm run db:generate -w @infraops/api",
     "db:migrate": "npm run db:migrate -w @infraops/api",
     "db:seed": "npm run db:seed -w @infraops/api",

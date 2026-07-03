@@ -9,7 +9,8 @@
     "lint": "echo \"No lint configured for worker\"",
     "typecheck": "tsc --noEmit",
     "test": "echo \"No tests yet for worker\"",
-    "eval": "ts-node eval/harness.ts"
+    "eval": "ts-node eval/harness.ts",
+    "test:features": "ts-node eval/feature-tests.ts"
   },
   "dependencies": {
     "@infraops/ai-tools": "*",

@@ -130,6 +130,8 @@ Deploy frontend to **Vercel** and backend to **Render**:
 
 Quick summary: Neon (pgvector) + Redis → Render API/worker → Vercel with `VITE_API_URL`.
 
+**CI/CD:** every push runs quality + integration + deploy gate. Only promote when the gate is green — see **[docs/CI_CD.md](docs/CI_CD.md)**.
+
 ---
 
 ## Databricks integration (optional)
@@ -176,6 +178,7 @@ docs/             Architecture, RAG, governance, evaluation
 | [docs/governance.md](docs/governance.md) | RBAC, review rules, audit |
 | [docs/ai-sdlc.md](docs/ai-sdlc.md) | Component maturity stages |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | **Production deploy** — Vercel + Render step-by-step |
+| [docs/CI_CD.md](docs/CI_CD.md) | **CI/CD gates** — automated tests before production |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud deployment reference + troubleshooting |
 
 ## Build phases (complete)
