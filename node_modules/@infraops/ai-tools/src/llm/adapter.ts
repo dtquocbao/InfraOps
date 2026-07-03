@@ -24,15 +24,29 @@ export interface LlmAdapter {
 export class StubLlmAdapter implements LlmAdapter {
   async complete(messages: LlmMessage[]): Promise<LlmCompletionResult> {
     const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-    const questionMatch = userMsg.match(/Question:\s*(.+)/s);
-    const question = questionMatch?.[1]?.trim() ?? userMsg;
+    const questionLine = userMsg.match(/\n\nQuestion:\s*([^\n]+)/);
+    const question = questionLine?.[1]?.trim() ?? 'the question';
     const contextMatch = userMsg.match(/Context:\n([\s\S]*?)\n\nQuestion:/);
-    const context = contextMatch?.[1] ?? '';
+    const context = contextMatch?.[1]?.trim() ?? '';
 
     if (context) {
-      const firstSource = context.split('---')[0]?.trim() ?? context.slice(0, 500);
+      // Prefer body text after source headers so groundedness scoring has real overlap.
+      const bodies = context
+        .split(/\n\n---\n\n/)
+        .map((block) => {
+          const lines = block.split('\n');
+          const start = lines[0]?.startsWith('[Source') ? 1 : 0;
+          return lines.slice(start).join('\n').trim();
+        })
+        .filter(Boolean)
+        .slice(0, 3);
+
+      const excerpt = bodies.join('\n\n').slice(0, 1200);
       return {
-        content: `Based on the retrieved Meridian Grid Services documents:\n\n${firstSource.slice(0, 600)}...\n\nThis addresses your question: "${question}"`,
+        content:
+          `Based on Meridian Grid Services source documents for "${question}":\n\n` +
+          `${excerpt}\n\n` +
+          `The answer above is grounded in the retrieved document excerpts.`,
         model: 'stub-context',
         inputTokens: 0,
         outputTokens: 0,

@@ -42,6 +42,15 @@ Runs the same registry as **Admin → Feature Test Suite** (~28 cases):
 1. Any failure outside `rag.eval.*` → **fail** (critical)
 2. Overall pass rate must be ≥ `FEATURE_TEST_MIN_PASS_RATE` (default **80%**)
 
+**RAG eval modes:**
+
+| Mode | When | Criteria |
+|------|------|----------|
+| **Stub** (CI default) | No `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Retrieval hit + valid citations + groundedness ≥ 0.15 |
+| **LLM** | API keys set in CI secrets or Admin settings | Groundedness ≥ 0.3 and citation accuracy ≥ 0.5 |
+
+CI does not require paid LLM keys. Optional: add keys as GitHub Actions secrets to run full quality thresholds.
+
 Report artifact: `feature-test-report.json`
 
 ### HTTP smoke tests (`npm run test:smoke`)

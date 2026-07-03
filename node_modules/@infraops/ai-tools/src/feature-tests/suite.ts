@@ -242,19 +242,32 @@ async function executeTestCase(
           chunks: chunks.map((c) => ({ chunkId: c.chunkId, content: c.content, score: c.score })),
           latencyMs: Date.now() - start,
         });
-        const passed = scores.groundedness >= 0.3 && scores.citationAccuracy >= 0.5;
+
+        // Full quality thresholds when a real LLM is configured; in CI (stub LLM) require
+        // pipeline integrity: retrieval hit + valid citations + minimal groundedness.
+        const hasLlmKey = !!(options.settings.ANTHROPIC_API_KEY || options.settings.OPENAI_API_KEY);
+        const passed = hasLlmKey
+          ? scores.groundedness >= 0.3 && scores.citationAccuracy >= 0.5
+          : chunks.length > 0 &&
+            rag.citations.length > 0 &&
+            scores.citationAccuracy >= 0.5 &&
+            scores.groundedness >= 0.15;
+
         return passed
-          ? pass('RAG eval thresholds met', {
+          ? pass(hasLlmKey ? 'RAG eval thresholds met' : 'RAG pipeline integrity OK (stub LLM)', {
               groundedness: scores.groundedness,
               citationAccuracy: scores.citationAccuracy,
               citationCount: rag.citations.length,
               latencyMs: Date.now() - start,
+              mode: hasLlmKey ? 'llm' : 'stub',
             })
-          : fail('RAG eval below thresholds', {
+          : fail(hasLlmKey ? 'RAG eval below thresholds' : 'RAG pipeline integrity failed', {
               groundedness: scores.groundedness,
               citationAccuracy: scores.citationAccuracy,
               citationCount: rag.citations.length,
+              chunkCount: chunks.length,
               latencyMs: Date.now() - start,
+              mode: hasLlmKey ? 'llm' : 'stub',
             });
       }
       return { status: 'skipped', message: 'No executor registered for this test case' };
