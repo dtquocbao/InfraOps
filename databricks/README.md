@@ -27,13 +27,17 @@ Alternative (any OS with Python):
 pip install databricks-cli
 ```
 
-## 1. Unity Catalog
+## 1. Unity Catalog + seed volume
 
-Run `unity_catalog/setup.sql` in a SQL editor or:
+Open **SQL → SQL Editor** in Databricks and run `databricks/unity_catalog/setup.sql`.
 
-```sql
--- Creates infraops catalog + bronze/silver/gold schemas
-```
+This creates:
+
+- Catalog `infraops` and schemas `bronze` / `silver` / `gold`
+- Volume `infraops.bronze.seed_files` (path: `/Volumes/infraops/bronze/seed_files`)
+
+> **Do not use `dbfs:/FileStore/...`** — many workspaces (including Free Edition) disable the public DBFS root and return:
+> `Public DBFS root is disabled. Access is denied on path: /FileStore/...`
 
 ## 2. Authenticate & upload seed data
 
@@ -42,34 +46,55 @@ Run `unity_catalog/setup.sql` in a SQL editor or:
 ```powershell
 # Restart terminal after winget install, then:
 databricks configure
-# Host: https://adb-xxx.azuredatabricks.net
+# Host: https://dbc-xxx.cloud.databricks.com
 # Token: dapi...
 ```
 
 **Option B — environment variables (no interactive prompt):**
 
 ```powershell
-$env:DATABRICKS_HOST = "https://adb-xxx.azuredatabricks.net"
+$env:DATABRICKS_HOST = "https://dbc-xxx.cloud.databricks.com"
 $env:DATABRICKS_TOKEN = "dapi..."
 ```
 
-Upload seed files from the repo root:
+Upload seed files from the repo root **into the Unity Catalog volume**:
 
 ```powershell
 cd D:\WORKSPACE\PROJECTS\QISG\InfraOps
-databricks fs cp -r seed dbfs:/FileStore/infraops/seed --overwrite
+
+# Documents (required for bronze ingest)
+databricks fs cp -r seed/documents /Volumes/infraops/bronze/seed_files/documents --overwrite
+
+# Optional: IoT fixtures folder
+databricks fs cp -r seed/iot /Volumes/infraops/bronze/seed_files/iot --overwrite
 ```
+
+Verify:
+
+```powershell
+databricks fs ls /Volumes/infraops/bronze/seed_files/documents
+```
+
+You should see `manifest.json` and the `.md` / `.txt` seed files.
+
+**UI alternative:** Catalog Explorer → `infraops` → `bronze` → `seed_files` → Upload.
 
 ## 3. Run notebooks (in order)
 
-| Notebook | Output |
-|----------|--------|
-| `01_bronze_ingest.py` | `bronze.documents_raw`, `bronze.iot_events_raw` |
-| `02_silver_transform.py` | `silver.documents_parsed`, `silver.document_chunks`, `silver.iot_events` |
-| `03_gold_curate.py` | `gold.document_chunks`, `gold.project_kpis`, `gold.risk_scores`, `gold.iot_daily_rollup` |
-| `04_vector_index.py` | Vector Search index on Gold chunks |
+Import notebooks via **Workspace → Import**. Use a **SQL warehouse** or classic cluster if Serverless blocks libraries.
 
-Import notebooks via **Workspace → Import** or sync with Databricks Repos.
+| Notebook | Required? | Output |
+|----------|-----------|--------|
+| `01_bronze_ingest.py` | **Yes** | `bronze.documents_raw`, `bronze.iot_events_raw` |
+| `02_silver_transform.py` | **Yes** | `silver.documents_parsed`, `silver.document_chunks`, `silver.iot_events` |
+| `03_gold_curate.py` | **Yes** | `gold.document_chunks`, KPIs, risks, IoT rollup |
+| `04_vector_index.py` | **No** (optional) | Vector Search index — often unavailable on Free Edition / Serverless |
+
+After **03**, verify in Catalog Explorer:
+
+`infraops.gold.document_chunks` has rows (expect ~60+ chunks).
+
+**Notebook 04 failure is OK.** On Serverless, `%pip install databricks-vector-search` fails (`No matching distribution`). The app does **not** need Vector Search — use SQL fallback (below).
 
 ## 4. Configure the app
 
@@ -95,14 +120,30 @@ curl http://localhost:3000/api/health
 RETRIEVAL_BACKEND=databricks npm run eval
 ```
 
-## Free Edition limitations
+## Free Edition / Serverless limitations
 
-Vector Search may be quota-limited on Free Edition. If `04_vector_index.py` fails:
+| Limitation | What to do |
+|------------|------------|
+| Public DBFS disabled | Use UC volume `/Volumes/infraops/bronze/seed_files` |
+| `databricks-vector-search` pip fails | Skip notebook 04; use SQL fallback |
+| Vector Search endpoint quota | Same — SQL fallback |
+| No OpenAI secret for embeddings | Not required for SQL fallback |
 
-1. Set `DATABRICKS_USE_SQL_FALLBACK=true` - app queries `gold.document_chunks` via SQL API
-2. Or keep `RETRIEVAL_BACKEND=pgvector` for local demo
+**App settings (Admin → Settings or env):**
 
-Both paths remain demonstrable via the feature flag.
+```
+RETRIEVAL_BACKEND=databricks
+DATABRICKS_HOST=https://dbc-xxx.cloud.databricks.com
+DATABRICKS_TOKEN=dapi...
+DATABRICKS_CATALOG=infraops
+DATABRICKS_SCHEMA_GOLD=gold
+DATABRICKS_WAREHOUSE_ID=<from SQL → SQL Warehouses>
+DATABRICKS_USE_SQL_FALLBACK=true
+```
+
+Find warehouse ID: **SQL → SQL Warehouses → your warehouse → Connection details**.
+
+Or keep `RETRIEVAL_BACKEND=pgvector` for local Postgres demo.
 
 ## Gold table schemas
 

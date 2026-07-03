@@ -2,15 +2,16 @@
 # Load raw seed documents and IoT events into Delta (immutable + ingestion metadata).
 #
 # Prerequisites:
-#   1. Run databricks/unity_catalog/setup.sql
-#   2. Upload seed/ folder to DBFS: databricks fs cp -r seed dbfs:/FileStore/infraops/seed --overwrite
+#   1. Run databricks/unity_catalog/setup.sql (creates UC volume infraops.bronze.seed_files)
+#   2. Upload seed/ to the volume (public DBFS is often disabled):
+#        databricks fs cp -r seed/documents /Volumes/infraops/bronze/seed_files/documents --overwrite
 #
 # Run order: 01 → 02 → 03 → 04
 
 # COMMAND ----------
 
 dbutils.widgets.text("catalog", "infraops")
-dbutils.widgets.text("seed_path", "dbfs:/FileStore/infraops/seed")
+dbutils.widgets.text("seed_path", "/Volumes/infraops/bronze/seed_files")
 
 CATALOG = dbutils.widgets.get("catalog")
 SEED_PATH = dbutils.widgets.get("seed_path")

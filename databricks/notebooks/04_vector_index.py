@@ -1,11 +1,16 @@
-# Databricks Vector Search Index - InfraOps AI
-# Creates a Vector Search index on gold.document_chunks.
+# Databricks Vector Search Index - InfraOps AI (OPTIONAL)
 #
-# NOTE (Free Edition): Vector Search may be quota-limited. If this cell fails,
-# document the error and use RETRIEVAL_BACKEND=pgvector OR the app's SQL fallback
-# which queries gold.document_chunks via the Databricks SQL API.
+# Free Edition / Serverless often cannot:
+#   - install `databricks-vector-search` via %pip
+#   - create Vector Search endpoints (quota / SKU limits)
 #
-# Requires: embedding column populated - run the embedding enrichment cell first.
+# For InfraOps AI this notebook is OPTIONAL. The app queries Gold via SQL when:
+#   RETRIEVAL_BACKEND=databricks
+#   DATABRICKS_USE_SQL_FALLBACK=true
+#   DATABRICKS_WAREHOUSE_ID=<your SQL warehouse id>
+#
+# Success criteria on Free Edition: gold.document_chunks has rows (from notebook 03).
+# Run order: 01 → 02 → 03 → (04 optional)
 
 # COMMAND ----------
 
@@ -18,60 +23,60 @@ spark.sql(f"USE CATALOG {CATALOG}")
 
 # COMMAND ----------
 
-# Enrich gold chunks with embeddings via Databricks Foundation Model API or OpenAI
-# For demo: use mlflow embeddings or external API - placeholder uses OpenAI if secret configured
+# Verify Gold layer (required for app SQL fallback)
+gold_table = f"{CATALOG}.gold.document_chunks"
 try:
-    import openai
-    import os
-
-    chunks_pdf = spark.table(f"{CATALOG}.gold.document_chunks").limit(500).toPandas()
-    api_key = dbutils.secrets.get(scope="infraops", key="openai_api_key")
-    client = openai.OpenAI(api_key=api_key)
-
-    embeddings = []
-    for content in chunks_pdf["content"]:
-        resp = client.embeddings.create(model="text-embedding-3-small", input=content[:8000])
-        embeddings.append(resp.data[0].embedding)
-
-    chunks_pdf["embedding"] = embeddings
-    embed_df = spark.createDataFrame(chunks_pdf)
-    embed_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{CATALOG}.gold.document_chunks_embedded")
-    source_table = f"{CATALOG}.gold.document_chunks_embedded"
-    print(f"Embeddings written: {embed_df.count()} rows")
+    count = spark.table(gold_table).count()
+    print(f"✓ {gold_table}: {count} rows")
+    if count == 0:
+        raise ValueError("Gold table is empty — run notebook 03_gold_curate.py first")
+    print("Gold layer is ready for DATABRICKS_USE_SQL_FALLBACK=true")
 except Exception as e:
-    print(f"Embedding enrichment skipped or failed: {e}")
-    print("Using gold.document_chunks without embeddings - SQL/keyword fallback only")
-    source_table = f"{CATALOG}.gold.document_chunks"
+    print(f"✗ Gold verification failed: {e}")
+    dbutils.notebook.exit(f"FAIL: {e}")
 
 # COMMAND ----------
 
-# Create Vector Search index (Delta Sync)
-from databricks.vector_search.client import VectorSearchClient
-
-vsc = VectorSearchClient()
+# Optional: Vector Search (skip cleanly when package / quota unavailable)
+# Do NOT %pip install databricks-vector-search on Serverless — package is not published for that runtime.
 
 full_index_name = f"{CATALOG}.gold.{INDEX_NAME}"
+vector_search_ok = False
 
 try:
+    from databricks.vector_search.client import VectorSearchClient
+
+    vsc = VectorSearchClient()
+    # Prefer managed embedding on source text column (no pre-computed embedding table required)
     vsc.create_delta_sync_index_and_wait(
-        endpoint_name="infraops_vs_endpoint",  # create endpoint in UI if needed
+        endpoint_name="infraops_vs_endpoint",
         index_name=full_index_name,
-        source_table_name=source_table,
+        source_table_name=gold_table,
         pipeline_type="TRIGGERED",
         primary_key="chunk_id",
-        embedding_source_column="embedding",
-        embedding_model_endpoint_name="text-embedding-3-small",  # or pre-computed embeddings
+        embedding_source_column="content",
+        embedding_model_endpoint_name="databricks-gte-large-en",
     )
-    print(f"Vector Search index created: {full_index_name}")
+    vector_search_ok = True
+    print(f"✓ Vector Search index created: {full_index_name}")
+except ImportError:
+    print("○ databricks.vector_search not available on this runtime (normal on Serverless / Free Edition)")
 except Exception as e:
-    print(f"Vector Search index creation failed (Free Edition quota likely): {e}")
-    print("Set DATABRICKS_USE_SQL_FALLBACK=true in app .env to query Gold table via SQL API")
+    print(f"○ Vector Search index creation skipped: {e}")
 
 # COMMAND ----------
 
-# Verify index query
-try:
-    results = vsc.get_index(full_index_name).describe()
-    print(results)
-except Exception as e:
-    print(f"Index verification: {e}")
+# Final status — notebook should complete successfully either way
+print("")
+print("═══════════════════════════════════════════════════")
+if vector_search_ok:
+    print("  Vector Search: ENABLED")
+    print(f"  Set DATABRICKS_VECTOR_INDEX={full_index_name}")
+else:
+    print("  Vector Search: NOT AVAILABLE (expected on Free Edition)")
+    print("  App config for Gold SQL retrieval:")
+    print("    RETRIEVAL_BACKEND=databricks")
+    print("    DATABRICKS_USE_SQL_FALLBACK=true")
+    print("    DATABRICKS_WAREHOUSE_ID=<SQL warehouse id>")
+print("═══════════════════════════════════════════════════")
+print("Notebook 04 complete — Gold layer is usable without Vector Search.")
