@@ -7,6 +7,25 @@ Medallion pipeline for Meridian Grid Services synthetic seed data.
 1. Sign up for [Databricks Free Edition](https://www.databricks.com/learn/free-edition) (not Community Edition - retired)
 2. Create a personal access token: **Settings → Developer → Access tokens**
 3. Create a SQL warehouse (for SQL fallback): **SQL → SQL Warehouses → Create**
+4. Install the **Databricks CLI** (required for `databricks fs` upload)
+
+### Install Databricks CLI (Windows)
+
+```powershell
+winget install --id Databricks.DatabricksCLI -e
+```
+
+Close and reopen the terminal (PATH update), then verify:
+
+```powershell
+databricks -v
+```
+
+Alternative (any OS with Python):
+
+```bash
+pip install databricks-cli
+```
 
 ## 1. Unity Catalog
 
@@ -16,10 +35,28 @@ Run `unity_catalog/setup.sql` in a SQL editor or:
 -- Creates infraops catalog + bronze/silver/gold schemas
 ```
 
-## 2. Upload seed data
+## 2. Authenticate & upload seed data
 
-```bash
-databricks configure --token
+**Option A — interactive configure (new CLI):**
+
+```powershell
+# Restart terminal after winget install, then:
+databricks configure
+# Host: https://adb-xxx.azuredatabricks.net
+# Token: dapi...
+```
+
+**Option B — environment variables (no interactive prompt):**
+
+```powershell
+$env:DATABRICKS_HOST = "https://adb-xxx.azuredatabricks.net"
+$env:DATABRICKS_TOKEN = "dapi..."
+```
+
+Upload seed files from the repo root:
+
+```powershell
+cd D:\WORKSPACE\PROJECTS\QISG\InfraOps
 databricks fs cp -r seed dbfs:/FileStore/infraops/seed --overwrite
 ```
 
