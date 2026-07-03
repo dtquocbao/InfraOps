@@ -294,4 +294,10 @@ export async function runFeatureTestSuite(
     failCount,
     skipCount,
     totalCount: results.length,
-    passRate: results.length ? passCoun
+    passRate: results.length ? passCount / results.length : 0,
+    retrievalBackend: usedPgFallback
+      ? `${options.settings.RETRIEVAL_BACKEND}+pgvector-fallback`
+      : options.settings.RETRIEVAL_BACKEND,
+    results,
+  };
+}

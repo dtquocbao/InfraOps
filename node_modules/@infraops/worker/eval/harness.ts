@@ -31,23 +31,20 @@ async function main() {
 
   const retriever = createRetriever({
     backend: settings.RETRIEVAL_BACKEND,
-    pgExecuteSql:
-      settings.RETRIEVAL_BACKEND === 'pgvector'
-        ? async (sql, params) =>
-            prisma.$queryRawUnsafe(sql, ...params) as Promise<
-              {
-                chunk_id: string;
-                document_id: string;
-                content: string;
-                title: string;
-                revision: string;
-                doc_type: string;
-                discipline: string;
-                security_level: string;
-                combined_score: number;
-              }[]
-            >
-        : undefined,
+    pgExecuteSql: async (sql, params) =>
+      prisma.$queryRawUnsafe(sql, ...params) as Promise<
+        {
+          chunk_id: string;
+          document_id: string;
+          content: string;
+          title: string;
+          revision: string;
+          doc_type: string;
+          discipline: string;
+          security_level: string;
+          combined_score: number;
+        }[]
+      >,
     databricks: {
       host: settings.DATABRICKS_HOST ?? '',
       token: settings.DATABRICKS_TOKEN ?? '',
