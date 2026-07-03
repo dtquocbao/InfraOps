@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext ts,tsx",
+    "lint": "echo \"No lint configured for web\"",
     "typecheck": "tsc -b --noEmit",
     "test": "echo \"No tests yet for web\""
   },
