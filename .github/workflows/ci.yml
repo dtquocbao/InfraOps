@@ -51,9 +51,12 @@ jobs:
 
       - run: npm run lint
 
-      - run: npm run typecheck
+      - run: npm run build -w @infraops/shared -w @infraops/ai-tools
 
       - run: npm run db:generate -w @infraops/api
+
+      - run: npm run typecheck
+
       - run: npm run db:migrate -w @infraops/api
 
       - run: npm run test
