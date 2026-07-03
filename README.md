@@ -122,6 +122,16 @@ npm run dev -w @infraops/web
 
 ---
 
+## Production deployment
+
+Deploy frontend to **Vercel** and backend to **Render**:
+
+→ **[docs/PRODUCTION.md](docs/PRODUCTION.md)** — full step-by-step runbook (~45 min)
+
+Quick summary: Neon (pgvector) + Redis → Render API/worker → Vercel with `VITE_API_URL`.
+
+---
+
 ## Databricks integration (optional)
 
 1. Sign up: [Databricks Free Edition](https://www.databricks.com/learn/free-edition)
@@ -165,7 +175,8 @@ docs/             Architecture, RAG, governance, evaluation
 | [docs/evaluation.md](docs/evaluation.md) | Metrics + scorecard |
 | [docs/governance.md](docs/governance.md) | RBAC, review rules, audit |
 | [docs/ai-sdlc.md](docs/ai-sdlc.md) | Component maturity stages |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel + Render cloud deployment |
+| [docs/PRODUCTION.md](docs/PRODUCTION.md) | **Production deploy** — Vercel + Render step-by-step |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud deployment reference + troubleshooting |
 
 ## Build phases (complete)
 

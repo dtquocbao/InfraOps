@@ -1,9 +1,12 @@
 # Render Blueprint — InfraOps AI backend
-# Docs: docs/DEPLOYMENT.md
+# Full guide: docs/PRODUCTION.md
 #
-# Required manual env vars (Dashboard → each service → Environment):
-#   DATABASE_URL  — Postgres WITH pgvector (e.g. Neon, Supabase). NOT plain Render Postgres.
-#   REDIS_URL     — Redis (Render Key Value, Upstash, or Redis Cloud)
+# Render Free tier does NOT support type: worker background services.
+# BullMQ processors run embedded inside the API container (see apps/api/docker-entrypoint.sh).
+#
+# Required manual env vars (Dashboard → infraops-api → Environment):
+#   DATABASE_URL  — Postgres WITH pgvector (Neon or Supabase)
+#   REDIS_URL     — Render Key Value, Upstash, or Redis Cloud
 #   WEB_ORIGIN    — Vercel frontend URL, e.g. https://your-app.vercel.app
 
 services:
@@ -24,20 +27,4 @@ services:
       - key: REDIS_URL
         sync: false
       - key: WEB_ORIGIN
-        sync: false
-
-  - type: worker
-    name: infraops-worker
-    runtime: docker
-    dockerfilePath: apps/worker/Dockerfile
-    dockerContext: .
-    plan: free
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: JWT_SECRET
         sync: false

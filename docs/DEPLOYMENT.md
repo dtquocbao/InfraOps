@@ -1,5 +1,7 @@
 # Deploying InfraOps AI — Vercel (frontend) + Render (backend)
 
+> **Full runbook:** [PRODUCTION.md](./PRODUCTION.md) — step-by-step production instructions.
+
 Split deployment: **React on Vercel**, **NestJS API + BullMQ worker on Render**.
 
 > **Important:** Build failures on Vercel/Render are usually **missing config or wrong Docker context**, not the pgvector fallback runtime fix. Follow this guide exactly.
@@ -45,7 +47,7 @@ Copy URL → `REDIS_URL` (format: `redis://...` or `rediss://...`).
 
 ---
 
-## 2. Render — API + Worker
+## 2. Render — API (embedded worker)
 
 ### Option A: Blueprint (recommended)
 
@@ -55,7 +57,7 @@ Copy URL → `REDIS_URL` (format: `redis://...` or `rediss://...`).
    - `DATABASE_URL` — Neon/Supabase URL with pgvector
    - `REDIS_URL` — Redis URL
    - `WEB_ORIGIN` — your Vercel URL (see section 3)
-4. Deploy **infraops-api** and **infraops-worker**.
+4. Deploy **`infraops-api`** only (worker runs inside the API container on Free tier).
 
 ### Option B: Manual web service
 
@@ -76,11 +78,7 @@ Copy URL → `REDIS_URL` (format: `redis://...` or `rediss://...`).
 | `NODE_ENV` | `production` |
 | `WEB_ORIGIN` | `https://your-app.vercel.app` |
 
-Repeat for **worker** service with `apps/worker/Dockerfile`, same `DATABASE_URL` / `REDIS_URL` / `JWT_SECRET` (no `WEB_ORIGIN` required).
-
-### First deploy timing
-
-The API container runs migrate → seed → start. Initial seed processes 15 documents (~2–5 min). Watch logs for `Seed complete`.
+The API container runs migrate → seed → embedded worker → start. Initial seed processes 15 documents (~2–5 min). Watch logs for `Seed complete`.
 
 ### Retrieval backend on cloud
 
@@ -153,7 +151,8 @@ WEB_ORIGIN=https://your-app.vercel.app,https://your-app-*.vercel.app
 | Render deploy OK then crashes | No pgvector on Postgres | Use Neon/Supabase; run `CREATE EXTENSION vector;` |
 | Render health check fails | Still seeding | Wait for seed logs; increase health check start period |
 | Feature tests fail on RAG | Databricks configured but broken | Set `RETRIEVAL_BACKEND=pgvector` in Admin → Settings |
-| Worker jobs never run | Worker service not deployed | Deploy `infraops-worker` on Render |
+| Worker jobs never run | Redis misconfigured or API not restarted | Check `REDIS_URL`; redeploy API; look for worker log line in API container |
+| Blueprint sync failed on worker | Free plan lacks Background Workers | Use updated `render.yaml` (API only, embedded worker) |
 | Render free tier slow | Cold start | First request after idle takes ~50s |
 
 ---
@@ -170,8 +169,7 @@ WEB_ORIGIN=https://your-app.vercel.app,https://your-app-*.vercel.app
 - [ ] `WEB_ORIGIN=https://<vercel-host>`
 - [ ] `NODE_ENV=production`
 
-### Render Worker
-- [ ] Same `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`
+> Worker runs embedded in API container on Render Free tier — no separate worker service.
 
 ### Optional (Admin → Settings after login)
 - [ ] `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` for real LLM quality
