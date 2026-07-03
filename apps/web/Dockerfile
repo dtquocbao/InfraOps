@@ -8,7 +8,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ai-tools/package.json ./packages/ai-tools/
-RUN npm install
+RUN npm ci
 
 FROM deps AS build
 ARG VITE_API_URL=http://localhost:3000

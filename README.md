@@ -165,7 +165,7 @@ docs/             Architecture, RAG, governance, evaluation
 | [docs/evaluation.md](docs/evaluation.md) | Metrics + scorecard |
 | [docs/governance.md](docs/governance.md) | RBAC, review rules, audit |
 | [docs/ai-sdlc.md](docs/ai-sdlc.md) | Component maturity stages |
-| [docs/build-log.md](docs/build-log.md) | Phase-by-phase build history |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel + Render cloud deployment |
 
 ## Build phases (complete)
 

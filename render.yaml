@@ -1,0 +1,43 @@
+# Render Blueprint — InfraOps AI backend
+# Docs: docs/DEPLOYMENT.md
+#
+# Required manual env vars (Dashboard → each service → Environment):
+#   DATABASE_URL  — Postgres WITH pgvector (e.g. Neon, Supabase). NOT plain Render Postgres.
+#   REDIS_URL     — Redis (Render Key Value, Upstash, or Redis Cloud)
+#   WEB_ORIGIN    — Vercel frontend URL, e.g. https://your-app.vercel.app
+
+services:
+  - type: web
+    name: infraops-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+
+  - type: worker
+    name: infraops-worker
+    runtime: docker
+    dockerfilePath: apps/worker/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false

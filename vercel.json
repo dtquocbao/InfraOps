@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": null,
+  "installCommand": "npm ci --workspace=@infraops/web --workspace=@infraops/shared --include-workspace-root",
+  "buildCommand": "npm run build -w @infraops/shared && npm run build -w @infraops/web",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+}

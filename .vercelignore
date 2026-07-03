@@ -1,0 +1,8 @@
+apps/api
+apps/worker
+databricks
+seed/documents
+docs/screenshots
+.agent
+.cursor
+**/*.tsbuildinfo
