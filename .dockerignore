@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.gitignore
+.env
+.env.*
+*.log
+coverage
+.turbo
+**/*.tsbuildinfo
+uploads
+docs/screenshots/*.png
+.agent
+.cursor

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: infraops
+          POSTGRES_PASSWORD: infraops
+          POSTGRES_DB: infraops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U infraops -d infraops"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://infraops:infraops@localhost:5432/infraops
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret-min-16-chars
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm install
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run db:generate -w @infraops/api
+      - run: npm run db:migrate -w @infraops/api
+
+      - run: npm run test
+
+      - run: npm run build

@@ -1,0 +1,1 @@
+# Placeholder - run `npm run eval 2>&1 | tee docs/eval-results/latest.txt` after docker compose up to capture your scorecard.

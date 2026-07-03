@@ -1,0 +1,25 @@
+{
+  "name": "infraops-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "InfraOps AI - Enterprise Agentic RAG platform for Meridian Grid Services",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate -w @infraops/api",
+    "db:migrate": "npm run db:migrate -w @infraops/api",
+    "db:seed": "npm run db:seed -w @infraops/api",
+    "eval": "npm run eval -w @infraops/worker",
+    "iot:simulate": "npx ts-node seed/iot/simulate.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
