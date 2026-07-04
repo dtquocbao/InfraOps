@@ -1,5 +1,13 @@
 import type { EvaluationInput, EvaluationScores } from '@infraops/shared';
-import { IOT_BASELINES } from '@infraops/shared';
+import { scoreHeuristic } from '../iot/heuristic';
+
+/** @deprecated Use scoreHeuristic from iot/heuristic — kept for existing imports */
+export function detectAnomaly(
+  deviceType: string,
+  reading: Record<string, number>,
+): number {
+  return scoreHeuristic(deviceType, reading);
+}
 
 const RETRIEVAL_HIT_THRESHOLD = 0.05;
 const HALLUCINATION_GROUNDEDNESS_THRESHOLD = 0.45;
@@ -55,31 +63,4 @@ export function scoreEvaluation(input: EvaluationInput): EvaluationScores {
     hallucinationFlag,
     retrievalHitRate,
   };
-}
-
-export function detectAnomaly(
-  deviceType: string,
-  reading: Record<string, number>,
-): number {
-  const baseline = IOT_BASELINES[deviceType];
-  if (!baseline) return 0;
-
-  let totalWeight = 0;
-  let anomalySum = 0;
-
-  for (const [field, range] of Object.entries(baseline.fields)) {
-    const value = reading[field];
-    if (value === undefined) continue;
-    totalWeight += range.weight;
-
-    if (value >= range.min && value <= range.max) continue;
-
-    const span = range.max - range.min || 1;
-    const distance =
-      value < range.min ? (range.min - value) / span : (value - range.max) / span;
-    anomalySum += Math.min(1, distance) * range.weight;
-  }
-
-  if (totalWeight === 0) return 0;
-  return Math.round((anomalySum / totalWeight) * 100) / 100;
 }

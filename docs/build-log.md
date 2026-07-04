@@ -4,6 +4,40 @@ Living task log for coding agent context across sessions.
 
 ---
 
+## Session: 2026-07-03 - Model Serving IoT Anomaly Upgrade (COMPLETE)
+
+### Goal
+Replace high-frequency LLM-style detection with a small classifier path (heuristic or Databricks Model Serving); LLM only explains flagged events. Spec: `InfraOps_AI_ModelServing_IoT_Upgrade.md`.
+
+### Completed
+
+- [x] **Settings** — `IOT_SCORING_BACKEND`, `IOT_MODEL_ENDPOINT_URL`, `IOT_MODEL_ENDPOINT_TOKEN`, `IOT_MODEL_VERSION` (Admin → IoT Anomaly Scoring)
+- [x] **Schema** — `iot_events.scoring_backend`, `model_version`, `explanation` + migration
+- [x] **`analyzeIot`** — feature extract → score (heuristic | model_serving with fallback) → LLM explain if flagged
+- [x] **Worker** — `processIotEvent` uses two-step flow; audit log includes explanation + backend
+- [x] **Training notebook** — `databricks/notebooks/05_train_iot_anomaly_model.py` (IsolationForest + MLflow UC)
+- [x] **Deploy script** — `databricks/serving/iot_anomaly_endpoint.py` (dev scale-to-zero vs demo provisioned)
+- [x] **Docs** — `docs/iot-anomaly-model.md`, architecture IoT sequence, unit tests for heuristic path
+- [x] **UI** — IoT Monitor shows scoring backend + explanation on alerts
+
+### Verification
+
+```bash
+npm run build -w @infraops/shared -w @infraops/ai-tools
+npm run test -w @infraops/ai-tools
+# With stack up:
+npm run iot:simulate
+# Admin → Settings → IOT_SCORING_BACKEND=heuristic (default)
+```
+
+### Notes
+
+- Default remains **heuristic** (zero Databricks dependency).
+- Model Serving deploy is optional and cost-aware (`scale_to_zero` for day-to-day).
+- No changes to RAG, agent orchestration, or eval harness beyond IoT.
+
+---
+
 ## Session: 2026-07-02 - Phase 5 Polish & Narrative (COMPLETE)
 
 ### Goal

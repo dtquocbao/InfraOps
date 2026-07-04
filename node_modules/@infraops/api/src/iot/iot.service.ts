@@ -38,6 +38,9 @@ export class IotService {
         id: e.id,
         reading: e.reading,
         anomalyScore: e.anomalyScore,
+        scoringBackend: e.scoringBackend,
+        modelVersion: e.modelVersion,
+        explanation: e.explanation,
         isAlert: (e.anomalyScore ?? 0) >= IOT_ALERT_SEVERITY_THRESHOLD,
         createdAt: e.createdAt.toISOString(),
       })),
@@ -60,6 +63,9 @@ export class IotService {
       location: e.device.location,
       reading: e.reading,
       anomalyScore: e.anomalyScore,
+      scoringBackend: e.scoringBackend,
+      modelVersion: e.modelVersion,
+      explanation: e.explanation,
       createdAt: e.createdAt.toISOString(),
     }));
   }

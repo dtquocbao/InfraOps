@@ -108,6 +108,16 @@ const SETTINGS_TESTS: FeatureTestCaseDef[] = [
   },
 ];
 
+const IOT_TESTS: FeatureTestCaseDef[] = [
+  {
+    id: 'iot.heuristic_score',
+    category: 'workflow',
+    name: 'IoT heuristic scoring',
+    description: 'Baseline heuristic flags injected anomalies without Model Serving',
+    tags: ['iot'],
+  },
+];
+
 /** Canonical registry — add new cases here for future features. */
 export const FEATURE_TEST_REGISTRY: FeatureTestCaseDef[] = [
   ...PLATFORM_TESTS,
@@ -116,6 +126,7 @@ export const FEATURE_TEST_REGISTRY: FeatureTestCaseDef[] = [
   ...RAG_STATIC_TESTS,
   ...RAG_EVAL_TESTS,
   ...WORKFLOW_TESTS,
+  ...IOT_TESTS,
   ...SETTINGS_TESTS,
 ];
 

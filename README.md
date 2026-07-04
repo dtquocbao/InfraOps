@@ -179,6 +179,7 @@ docs/             Architecture, RAG, governance, evaluation
 | [docs/ai-sdlc.md](docs/ai-sdlc.md) | Component maturity stages |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | **Production deploy** — Vercel + Render step-by-step |
 | [docs/CI_CD.md](docs/CI_CD.md) | **CI/CD gates** — automated tests before production |
+| [docs/iot-anomaly-model.md](docs/iot-anomaly-model.md) | IoT scoring: heuristic / Model Serving + LLM explain |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud deployment reference + troubleshooting |
 
 ## Build phases (complete)

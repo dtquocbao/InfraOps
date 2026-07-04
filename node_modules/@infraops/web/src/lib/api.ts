@@ -192,6 +192,9 @@ export interface IotAlert {
   location: string;
   reading: Record<string, number>;
   anomalyScore: number;
+  scoringBackend?: string;
+  modelVersion?: string | null;
+  explanation?: string | null;
   createdAt: string;
 }
 
@@ -247,7 +250,7 @@ export interface SystemSettingView {
   key: string;
   label: string;
   description: string;
-  category: 'llm' | 'retrieval' | 'databricks' | 'mlflow';
+  category: 'llm' | 'retrieval' | 'databricks' | 'mlflow' | 'iot';
   value: string;
   displayValue: string;
   isSecret: boolean;

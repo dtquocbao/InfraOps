@@ -33,15 +33,21 @@ export function IotMonitorPage() {
             <AlertTriangle className="h-5 w-5" />
             Active Alerts ({alerts.length})
           </h2>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-3">
             {alerts.slice(0, 5).map((a) => (
-              <div key={a.id} className="flex items-center justify-between text-sm">
-                <span className="text-white">
-                  {a.deviceName} - {a.location}
-                </span>
-                <span className="text-red-400">
-                  score {(a.anomalyScore * 100).toFixed(0)}% · {new Date(a.createdAt).toLocaleTimeString()}
-                </span>
+              <div key={a.id} className="text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-white">
+                    {a.deviceName} - {a.location}
+                  </span>
+                  <span className="shrink-0 text-red-400">
+                    score {(a.anomalyScore * 100).toFixed(0)}% · {a.scoringBackend ?? 'heuristic'} ·{' '}
+                    {new Date(a.createdAt).toLocaleTimeString()}
+                  </span>
+                </div>
+                {a.explanation && (
+                  <p className="mt-1 text-xs text-red-200/80">{a.explanation}</p>
+                )}
               </div>
             ))}
           </div>

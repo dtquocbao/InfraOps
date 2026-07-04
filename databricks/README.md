@@ -89,6 +89,7 @@ Import notebooks via **Workspace → Import**. Use a **SQL warehouse** or classi
 | `02_silver_transform.py` | **Yes** | `silver.documents_parsed`, `silver.document_chunks`, `silver.iot_events` |
 | `03_gold_curate.py` | **Yes** | `gold.document_chunks`, KPIs, risks, IoT rollup |
 | `04_vector_index.py` | **No** (optional) | Vector Search index — often unavailable on Free Edition / Serverless |
+| `05_train_iot_anomaly_model.py` | **No** (optional) | IsolationForest IoT scorer → MLflow / Unity Catalog for Model Serving |
 
 After **03**, verify in Catalog Explorer:
 

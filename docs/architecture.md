@@ -34,7 +34,7 @@ flowchart TB
 
     subgraph Worker["apps/worker - BullMQ"]
         DOC_W[Document Processor]
-        IOT_W[IoT + Anomaly]
+        IOT_W[IoT analyze_iot]
         EVAL_W[Evaluation Scorer]
     end
 
@@ -48,6 +48,7 @@ flowchart TB
         SILVER[silver.*]
         GOLD[gold.*]
         VS[Vector Search Index]
+        MS[Model Serving<br/>iot-anomaly]
     end
 
     subgraph External["Managed Services"]
@@ -72,7 +73,36 @@ flowchart TB
     DOC_W --> PG
     EVAL_W --> PG
     EVAL_W -.-> MLF
+    IOT_W -->|IOT_SCORING_BACKEND=heuristic| IOT_W
+    IOT_W -->|IOT_SCORING_BACKEND=model_serving| MS
+    IOT_W -->|flagged only| LLM
 ```
+
+## IoT anomaly scoring (two-step)
+
+```mermaid
+sequenceDiagram
+    participant S as Simulator / Device
+    participant A as API
+    participant W as Worker
+    participant H as Heuristic / Model Serving
+    participant L as LLM
+
+    S->>A: POST /api/iot/events
+    A->>W: process_iot_event
+    W->>W: extractFeatures (rolling window)
+    W->>H: scoreAnomaly
+    H-->>W: score + backend + model_version
+    alt score below threshold
+        W->>W: persist iot_events (no LLM)
+    else score flagged
+        W->>L: explain anomaly (low frequency)
+        L-->>W: explanation
+        W->>W: persist + audit alert
+    end
+```
+
+See [iot-anomaly-model.md](./iot-anomaly-model.md).
 
 ## Request flow - RAG query
 
@@ -186,6 +216,7 @@ Retrieval rule: **Gold layer only** when `RETRIEVAL_BACKEND=databricks` - never 
 | Agent orchestration | **Build** | Domain-specific review rules, citations, RBAC, intent classifier |
 | Evaluation harness | **Build** | Portfolio artifact; 15-question scorecard |
 | Human review workflow | **Build** | Configurable trigger rules table |
+| IoT anomaly scoring | **Build** features + **Buy** Model Serving | Small classifier for high-frequency events; LLM only explains flags |
 | Identity (MVP) | **Build** - JWT | Entra ID documented as stretch goal |
 
 ## Security & governance (implemented)
@@ -239,6 +270,7 @@ Full OpenAPI: http://localhost:3000/api/docs
 ## Related docs
 
 - [RAG pipeline](./rag.md)
+- [IoT anomaly model](./iot-anomaly-model.md)
 - [Evaluation framework](./evaluation.md)
 - [Governance](./governance.md)
 - [AI SDLC status](./ai-sdlc.md)

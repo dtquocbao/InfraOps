@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SettingCategory = z.enum(['llm', 'retrieval', 'databricks', 'mlflow']);
+export const SettingCategory = z.enum(['llm', 'retrieval', 'databricks', 'mlflow', 'iot']);
 export type SettingCategory = z.infer<typeof SettingCategory>;
 
 export interface SettingDefinition {
@@ -120,6 +120,39 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
     defaultValue: '',
     isSecret: false,
   },
+  {
+    key: 'IOT_SCORING_BACKEND',
+    label: 'IoT Scoring Backend',
+    description: 'heuristic (local rules) or model_serving (Databricks endpoint)',
+    category: 'iot',
+    defaultValue: 'heuristic',
+    isSecret: false,
+    options: ['heuristic', 'model_serving'],
+  },
+  {
+    key: 'IOT_MODEL_ENDPOINT_URL',
+    label: 'IoT Model Endpoint URL',
+    description: 'Databricks Model Serving invoke URL for anomaly scoring',
+    category: 'iot',
+    defaultValue: '',
+    isSecret: false,
+  },
+  {
+    key: 'IOT_MODEL_ENDPOINT_TOKEN',
+    label: 'IoT Model Endpoint Token',
+    description: 'Bearer token for Model Serving (usually DATABRICKS_TOKEN)',
+    category: 'iot',
+    defaultValue: '',
+    isSecret: true,
+  },
+  {
+    key: 'IOT_MODEL_VERSION',
+    label: 'IoT Model Version',
+    description: 'Registered model version label recorded on each event',
+    category: 'iot',
+    defaultValue: 'heuristic-v1',
+    isSecret: false,
+  },
 ];
 
 export const SETTING_KEYS = SETTING_DEFINITIONS.map((d) => d.key);
@@ -141,6 +174,10 @@ export const AppSettingsSchema = z.object({
     .default('true')
     .transform((v) => v === 'true' || v === '1'),
   MLFLOW_TRACKING_URI: z.string().optional(),
+  IOT_SCORING_BACKEND: z.enum(['heuristic', 'model_serving']).default('heuristic'),
+  IOT_MODEL_ENDPOINT_URL: z.string().optional(),
+  IOT_MODEL_ENDPOINT_TOKEN: z.string().optional(),
+  IOT_MODEL_VERSION: z.string().default('heuristic-v1'),
 });
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;

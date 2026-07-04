@@ -12,3 +12,7 @@ export * from './rag/pipeline';
 export * from './processing/document-processor';
 export * from './evaluation/scorer';
 export * from './feature-tests/suite';
+export * from './iot/features';
+export * from './iot/heuristic';
+export * from './iot/model-serving';
+export * from './iot/analyze';

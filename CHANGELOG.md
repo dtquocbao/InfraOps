@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] - 2026-07-03 - Model Serving IoT Anomaly Upgrade
+
+### Added
+- Two-step IoT analysis: feature extract → classifier score → LLM explanation only when flagged
+- Feature flag `IOT_SCORING_BACKEND=heuristic|model_serving` with automatic heuristic fallback
+- `iot_events.scoring_backend`, `model_version`, `explanation` columns
+- Training notebook `05_train_iot_anomaly_model.py` (IsolationForest + MLflow Unity Catalog)
+- Endpoint deploy script `databricks/serving/iot_anomaly_endpoint.py` (dev vs demo configs)
+- `docs/iot-anomaly-model.md` — features, training, cost-safe serving, measured latency
+- Unit tests for feature extraction and heuristic scoring
+
+### Changed
+- Worker IoT processor uses `analyzeIot` instead of inline heuristic-only scoring
+- IoT Monitor UI shows scoring backend and LLM explanation on alerts
+- Architecture docs include IoT two-step sequence diagram
+
 ## [0.5.0] - 2026-07-02 - Phase 5 Polish & Narrative
 
 ### Added

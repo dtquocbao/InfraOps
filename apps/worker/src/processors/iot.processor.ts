@@ -1,11 +1,15 @@
-import * as fs from 'fs/promises';
 import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 import {
-  IOT_ALERT_SEVERITY_THRESHOLD,
+  loadSettingsFromDb,
+  settingsRecordToAppSettings,
   type IotEventPayload,
 } from '@infraops/shared';
-import { detectAnomaly, scoreEvaluation } from '@infraops/ai-tools';
+import {
+  analyzeIot,
+  createLlmAdapter,
+  scoreEvaluation,
+} from '@infraops/ai-tools';
 
 const logger = pino({ name: 'iot-processor' });
 
@@ -19,17 +23,54 @@ export async function processIotEvent(
   });
   if (!device) throw new Error(`Device ${payload.device_id} not found`);
 
-  const anomalyScore = detectAnomaly(device.deviceType, payload.reading as Record<string, number>);
+  const settingsRaw = await loadSettingsFromDb(prisma);
+  const settings = settingsRecordToAppSettings(settingsRaw);
+
+  const recent = await prisma.iotEvent.findMany({
+    where: { deviceId: payload.device_id },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+
+  const history = recent
+    .reverse()
+    .map((e) => ({
+      reading: e.reading as Record<string, number>,
+      createdAt: e.createdAt,
+    }));
+
+  const llm = createLlmAdapter({
+    anthropicKey: settings.ANTHROPIC_API_KEY,
+    openaiKey: settings.OPENAI_API_KEY,
+  });
+
+  const analysis = await analyzeIot({
+    deviceId: payload.device_id,
+    deviceType: device.deviceType,
+    reading: payload.reading as Record<string, number>,
+    history,
+    scoringBackend: settings.IOT_SCORING_BACKEND,
+    modelEndpointUrl: settings.IOT_MODEL_ENDPOINT_URL,
+    modelEndpointToken: settings.IOT_MODEL_ENDPOINT_TOKEN || settings.DATABRICKS_TOKEN,
+    modelVersionLabel:
+      settings.IOT_SCORING_BACKEND === 'model_serving'
+        ? settings.IOT_MODEL_VERSION || 'model-serving'
+        : 'heuristic-v1',
+    llm,
+  });
 
   const event = await prisma.iotEvent.create({
     data: {
       deviceId: payload.device_id,
       reading: payload.reading as object,
-      anomalyScore,
+      anomalyScore: analysis.score,
+      scoringBackend: analysis.scoringBackend,
+      modelVersion: analysis.modelVersion,
+      explanation: analysis.explanation,
     },
   });
 
-  if (anomalyScore >= IOT_ALERT_SEVERITY_THRESHOLD) {
+  if (analysis.isAlert) {
     await prisma.auditLog.create({
       data: {
         userId,
@@ -37,17 +78,39 @@ export async function processIotEvent(
         resourceType: 'iot_event',
         resourceId: event.id,
         metadata: {
+          summary: analysis.explanation
+            ? `IoT alert on ${payload.device_id}: ${analysis.explanation.slice(0, 120)}`
+            : `IoT alert on ${payload.device_id} (score ${analysis.score})`,
           deviceId: payload.device_id,
           deviceType: device.deviceType,
-          anomalyScore,
+          anomalyScore: analysis.score,
+          scoringBackend: analysis.scoringBackend,
+          modelVersion: analysis.modelVersion,
+          explanation: analysis.explanation,
           reading: payload.reading,
+          scoringLatencyMs: analysis.scoringLatencyMs,
         },
       },
     });
-    logger.warn({ deviceId: payload.device_id, anomalyScore }, 'IoT anomaly alert created');
+    logger.warn(
+      {
+        deviceId: payload.device_id,
+        anomalyScore: analysis.score,
+        scoringBackend: analysis.scoringBackend,
+        modelVersion: analysis.modelVersion,
+      },
+      'IoT anomaly alert created',
+    );
   }
 
-  return { eventId: event.id, anomalyScore, isAlert: anomalyScore >= IOT_ALERT_SEVERITY_THRESHOLD };
+  return {
+    eventId: event.id,
+    anomalyScore: analysis.score,
+    isAlert: analysis.isAlert,
+    scoringBackend: analysis.scoringBackend,
+    modelVersion: analysis.modelVersion,
+    explanation: analysis.explanation,
+  };
 }
 
 export async function processEvaluation(

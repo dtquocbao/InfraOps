@@ -12,6 +12,7 @@ import { createLlmAdapter } from '../llm/factory';
 import { createRetriever } from '../retrieval/factory';
 import { runRagPipeline } from '../rag/pipeline';
 import { scoreEvaluation } from '../evaluation/scorer';
+import { analyzeIot } from '../iot/analyze';
 
 export interface FeatureTestDb {
   $queryRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
@@ -219,6 +220,21 @@ async function executeTestCase(
             retrievalBackend: settings.RETRIEVAL_BACKEND,
           })
         : fail('Settings missing RETRIEVAL_BACKEND');
+    }
+    case 'iot.heuristic_score': {
+      const analysis = await analyzeIot({
+        deviceId: 'TXF-014',
+        deviceType: 'transformer',
+        reading: { temperature_c: 100, load_pct: 98, vibration_hz: 28 },
+        scoringBackend: 'heuristic',
+      });
+      return analysis.flagged && analysis.isAlert && analysis.scoringBackend === 'heuristic'
+        ? pass(`Heuristic score ${analysis.score}`, { score: analysis.score })
+        : fail(`Expected alert-level heuristic score, got ${analysis.score}`, {
+            score: analysis.score,
+            flagged: analysis.flagged,
+            isAlert: analysis.isAlert,
+          });
     }
     default: {
       if (testCase.id.startsWith('rag.eval.')) {

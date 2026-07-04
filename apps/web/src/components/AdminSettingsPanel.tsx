@@ -9,7 +9,8 @@ const CATEGORY_LABELS: Record<SystemSettingView['category'], string> = {
   retrieval: 'Retrieval',
   databricks: 'Databricks',
   mlflow: 'MLflow',
-};
+  iot: 'IoT Anomaly Scoring',
+}
 
 export function AdminSettingsPanel() {
   const { user } = useAuth();
