@@ -8,3 +8,8 @@ build/
 coverage/
 .turbo/
 *.tsbuildinfo
+apps/eval-service/harness-results/
+apps/eval-service/.venv/
+**/__pycache__/
+*.pyc
+.mlflow/

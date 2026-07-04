@@ -85,6 +85,7 @@ export class AgentsService {
         })),
         latencyMs,
         retrievalBackend,
+        traceId,
       },
       { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
     );

@@ -7,7 +7,10 @@ export class EvaluationService {
 
   async getSummary() {
     const [evaluations, runs, withHallucination] = await Promise.all([
-      this.prisma.evaluation.findMany(),
+      this.prisma.evaluation.findMany({
+        orderBy: { evaluatedAt: 'desc' },
+        take: 200,
+      }),
       this.prisma.agentRun.count(),
       this.prisma.evaluation.count({ where: { hallucinationFlag: true } }),
     ]);
@@ -24,6 +27,23 @@ export class EvaluationService {
 
     const retrievalHits = evaluations.filter((e) => (e.groundedness ?? 0) > 0).length;
 
+    const byBackend = {
+      heuristic: evaluations.filter((e) => e.evalBackend === 'heuristic').length,
+      mlflow: evaluations.filter((e) => e.evalBackend === 'mlflow').length,
+    };
+
+    const recent = evaluations.slice(0, 10).map((e) => ({
+      id: e.id,
+      agentRunId: e.agentRunId,
+      evalBackend: e.evalBackend,
+      mlflowRunId: e.mlflowRunId,
+      groundedness: e.groundedness,
+      citationAccuracy: e.citationAccuracy,
+      relevance: e.relevance,
+      hallucinationFlag: e.hallucinationFlag,
+      evaluatedAt: e.evaluatedAt.toISOString(),
+    }));
+
     return {
       totalRuns: runs,
       totalEvaluations: evaluations.length,
@@ -35,6 +55,8 @@ export class EvaluationService {
       retrievalHitRate: evaluations.length ? retrievalHits / evaluations.length : 0,
       positiveRatings: evaluations.filter((e) => e.userRating === 1).length,
       negativeRatings: evaluations.filter((e) => e.userRating === -1).length,
+      byBackend,
+      recent,
     };
   }
 }

@@ -4,6 +4,38 @@ Living task log for coding agent context across sessions.
 
 ---
 
+## Session: 2026-07-03 - MLflow Evaluation Upgrade (COMPLETE)
+
+### Goal
+Replace heuristic-only evaluation with MLflow-backed judges via a Python sidecar, keep NestJS orchestration unchanged. Spec: `InfraOps_AI_MLflow_Eval_Upgrade.md`.
+
+### Completed
+
+- [x] **`apps/eval-service`** — FastAPI: `/trace`, `/evaluate/:id`, `/harness/run`, health
+- [x] **Judges** — Correctness, RelevanceToQuery, Safety, Groundedness (+ local proxies); custom `contract_clause_fidelity`, `iot_explanation_fidelity`
+- [x] **Schema** — `evaluations.mlflow_run_id`, `eval_backend`, `judge_scores`
+- [x] **Settings** — `EVAL_BACKEND`, `EVAL_SERVICE_URL`, `MLFLOW_EXPERIMENT_PATH` (env overrides for Docker)
+- [x] **Worker** — `processEvaluation` calls eval-service when `EVAL_BACKEND=mlflow`, heuristic fallback
+- [x] **`npm run eval`** — scores via harness endpoint when service healthy; writes JSON artifacts
+- [x] **Admin summary** — `byBackend` + recent rows with `mlflowRunId`
+- [x] **Docs** — rewritten `docs/evaluation.md`; docker-compose `eval-service` on :8100
+
+### Verification
+
+```bash
+cd apps/eval-service && pip install -e ".[dev]" && pytest
+docker compose up --build
+# Admin → EVAL_BACKEND=mlflow (or env on worker)
+npm run eval
+```
+
+### Notes
+
+- Default remains `EVAL_BACKEND=heuristic` so demos work without Python judges.
+- Local proxies run when MLflow GenAI scorers are unavailable (Free Edition).
+
+---
+
 ## Session: 2026-07-03 - Model Serving IoT Anomaly Upgrade (COMPLETE)
 
 ### Goal

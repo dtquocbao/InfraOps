@@ -1,13 +1,23 @@
 /**
  * RAG evaluation harness - runs 15 fixed test questions and outputs a scorecard.
  * Usage: npm run eval (from repo root)
- * App settings (LLM keys, retrieval backend) are loaded from system_settings table.
+ *
+ * Scoring:
+ *   EVAL_BACKEND=mlflow     → apps/eval-service judges (MLflow traces)
+ *   EVAL_BACKEND=heuristic  → local token-overlap scorer
  */
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { EVAL_TEST_QUESTIONS, classifyQueryIntent, loadSettingsFromDb, settingsRecordToAppSettings, validateBootstrapEnv } from '@infraops/shared';
+import {
+  EVAL_TEST_QUESTIONS,
+  classifyQueryIntent,
+  loadSettingsFromDb,
+  settingsRecordToAppSettings,
+  validateBootstrapEnv,
+} from '@infraops/shared';
 import {
   createEmbeddingAdapter,
+  createEvalServiceClient,
   createLlmAdapter,
   createMlflowClient,
   createRetriever,
@@ -56,7 +66,7 @@ async function main() {
     },
   });
 
-  const results: {
+  type Row = {
     id: string;
     question: string;
     groundedness: number;
@@ -67,11 +77,18 @@ async function main() {
     citationCount: number;
     latencyMs: number;
     pass: boolean;
-  }[] = [];
+    mlflowRunId?: string;
+    answer?: string;
+    chunks?: { chunkId: string; content: string; score: number }[];
+    citations?: { chunkId: string; excerpt?: string }[];
+  };
+
+  const pipelineResults: Row[] = [];
 
   console.log('\n═══════════════════════════════════════════════════');
   console.log('  InfraOps AI - RAG Evaluation Scorecard');
   console.log(`  Retrieval backend: ${settings.RETRIEVAL_BACKEND}`);
+  console.log(`  Eval backend:      ${settings.EVAL_BACKEND}`);
   console.log('═══════════════════════════════════════════════════\n');
 
   for (const test of EVAL_TEST_QUESTIONS) {
@@ -87,29 +104,88 @@ async function main() {
     const rag = await runRagPipeline(llm, { question: test.question, chunks });
     const latencyMs = Date.now() - start;
 
-    const scores = scoreEvaluation({
-      question: test.question,
-      answer: rag.answer,
-      citations: rag.citations,
-      chunks: chunks.map((c) => ({ chunkId: c.chunkId, content: c.content, score: c.score })),
-    });
-
-    const pass = scores.groundedness >= 0.3 && scores.citationAccuracy >= 0.5;
-    results.push({
+    pipelineResults.push({
       id: test.id,
       question: test.question,
-      groundedness: scores.groundedness,
-      citationAccuracy: scores.citationAccuracy,
-      relevance: scores.relevance,
-      hallucinationFlag: scores.hallucinationFlag,
+      groundedness: 0,
+      citationAccuracy: 0,
+      relevance: 0,
+      hallucinationFlag: false,
       retrievalHitRate: chunks.length > 0 ? 1 : 0,
       citationCount: rag.citations.length,
       latencyMs,
-      pass,
+      pass: false,
+      answer: rag.answer,
+      chunks: chunks.map((c) => ({ chunkId: c.chunkId, content: c.content, score: c.score })),
+      citations: rag.citations,
     });
+  }
 
+  let results: Row[] = [];
+  let artifactPath: string | undefined;
+
+  const evalClient = createEvalServiceClient(settings.EVAL_SERVICE_URL);
+  const useMlflow =
+    settings.EVAL_BACKEND === 'mlflow' && evalClient && (await evalClient.health());
+
+  if (useMlflow && evalClient) {
+    const harness = await evalClient.runHarness(
+      pipelineResults.map((r) => ({
+        id: r.id,
+        question: r.question,
+        answer: r.answer!,
+        chunks: r.chunks!,
+        citations: r.citations!,
+        latencyMs: r.latencyMs,
+      })),
+    );
+    artifactPath = harness.artifactPath;
+    results = harness.results.map((r) => {
+      const row = r as Record<string, unknown>;
+      const base = pipelineResults.find((p) => p.id === row.id);
+      return {
+        id: String(row.id),
+        question: String(row.question),
+        groundedness: Number(row.groundedness),
+        citationAccuracy: Number(row.citationAccuracy),
+        relevance: Number(row.relevance),
+        hallucinationFlag: Boolean(row.hallucinationFlag),
+        retrievalHitRate: base?.retrievalHitRate ?? 0,
+        citationCount: base?.citationCount ?? 0,
+        latencyMs: Number(row.latencyMs ?? base?.latencyMs ?? 0),
+        pass: Boolean(row.pass),
+        mlflowRunId: row.mlflowRunId ? String(row.mlflowRunId) : undefined,
+      };
+    });
+    console.log('Scoring via eval-service (MLflow judges)\n');
+  } else {
+    if (settings.EVAL_BACKEND === 'mlflow') {
+      console.warn('eval-service unavailable — scoring with heuristic fallback\n');
+    }
+    for (const row of pipelineResults) {
+      const scores = scoreEvaluation({
+        question: row.question,
+        answer: row.answer!,
+        citations: row.citations!,
+        chunks: row.chunks!,
+        latencyMs: row.latencyMs,
+      });
+      const pass = scores.groundedness >= 0.3 && scores.citationAccuracy >= 0.5;
+      results.push({
+        ...row,
+        groundedness: scores.groundedness,
+        citationAccuracy: scores.citationAccuracy,
+        relevance: scores.relevance,
+        hallucinationFlag: scores.hallucinationFlag,
+        pass,
+      });
+    }
+  }
+
+  for (const r of results) {
     console.log(
-      `${pass ? '✓' : '✗'} ${test.id}: groundedness=${scores.groundedness.toFixed(2)} citations=${rag.citations.length} ${pass ? 'PASS' : 'FAIL'}`,
+      `${r.pass ? '✓' : '✗'} ${r.id}: groundedness=${r.groundedness.toFixed(2)} citations=${r.citationCount} ${r.pass ? 'PASS' : 'FAIL'}` +
+        (r.mlflowRunId ? ` mlflow=${r.mlflowRunId.slice(0, 8)}` : ''),
     );
   }
 
@@ -117,6 +193,7 @@ async function main() {
   const avg = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
 
   console.log('\n── Summary ──────────────────────────────────────');
+  console.log(`  Eval backend:       ${useMlflow ? 'mlflow' : 'heuristic'}`);
   console.log(`  Pass rate:          ${passCount}/${results.length} (${Math.round((passCount / results.length) * 100)}%)`);
   console.log(`  Avg groundedness:   ${avg(results.map((r) => r.groundedness)).toFixed(2)}`);
   console.log(`  Avg citation acc:   ${avg(results.map((r) => r.citationAccuracy)).toFixed(2)}`);
@@ -126,13 +203,14 @@ async function main() {
   );
   console.log(`  Retrieval hit rate: ${Math.round(avg(results.map((r) => r.retrievalHitRate)) * 100)}%`);
   console.log(`  Avg latency:        ${avg(results.map((r) => r.latencyMs)).toFixed(0)}ms`);
+  if (artifactPath) console.log(`  Artifact:           ${artifactPath}`);
   console.log('═══════════════════════════════════════════════════\n');
 
-  if (settings.MLFLOW_TRACKING_URI) {
+  if (settings.MLFLOW_TRACKING_URI && settings.MLFLOW_TRACKING_URI !== 'databricks') {
     const mlflow = createMlflowClient({
       trackingUri: settings.MLFLOW_TRACKING_URI,
       token: settings.DATABRICKS_TOKEN,
-      experimentName: 'infraops-rag-eval',
+      experimentName: settings.MLFLOW_EXPERIMENT_PATH || 'infraops-rag-eval',
     });
     if (mlflow) {
       try {
@@ -149,9 +227,9 @@ async function main() {
           },
           { retrieval_backend: settings.RETRIEVAL_BACKEND },
         );
-        console.log(`MLflow run logged: ${runId}`);
+        console.log(`Aggregate MLflow run logged: ${runId}`);
       } catch (err) {
-        console.warn('MLflow logging skipped:', (err as Error).message);
+        console.warn('Aggregate MLflow logging skipped:', (err as Error).message);
       }
     }
   }

@@ -35,7 +35,12 @@ flowchart TB
     subgraph Worker["apps/worker - BullMQ"]
         DOC_W[Document Processor]
         IOT_W[IoT analyze_iot]
-        EVAL_W[Evaluation Scorer]
+        EVAL_W[Evaluation job]
+    end
+
+    subgraph EvalSidecar["apps/eval-service"]
+        TRACE[MLflow Trace]
+        JUDGE[Built-in + Custom Judges]
     end
 
     subgraph DataLocal["Operational Store"]
@@ -71,8 +76,11 @@ flowchart TB
     Worker --> PG
     AGENT --> LLM
     DOC_W --> PG
-    EVAL_W --> PG
-    EVAL_W -.-> MLF
+    EVAL_W -->|EVAL_BACKEND=heuristic| PG
+    EVAL_W -->|EVAL_BACKEND=mlflow| TRACE
+    TRACE --> JUDGE
+    JUDGE --> PG
+    JUDGE -.-> MLF
     IOT_W -->|IOT_SCORING_BACKEND=heuristic| IOT_W
     IOT_W -->|IOT_SCORING_BACKEND=model_serving| MS
     IOT_W -->|flagged only| LLM

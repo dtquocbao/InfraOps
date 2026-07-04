@@ -177,6 +177,9 @@ model Evaluation {
   hallucinationFlag Boolean @default(false) @map("hallucination_flag")
   relevance        Float?
   userRating       Int?     @map("user_rating")
+  mlflowRunId      String?  @map("mlflow_run_id")
+  evalBackend      String   @default("heuristic") @map("eval_backend")
+  judgeScores      Json?    @map("judge_scores")
   evaluatedAt      DateTime @default(now()) @map("evaluated_at")
 
   agentRun AgentRun @relation(fields: [agentRunId], references: [id])

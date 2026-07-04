@@ -7,6 +7,7 @@ import {
 } from '@infraops/shared';
 import {
   analyzeIot,
+  createEvalServiceClient,
   createLlmAdapter,
   scoreEvaluation,
 } from '@infraops/ai-tools';
@@ -119,11 +120,57 @@ export async function processEvaluation(
     agentRunId: string;
     question: string;
     answer: string;
-    citations: { chunkId: string; excerpt?: string }[];
+    citations: { chunkId: string; excerpt?: string; documentId?: string }[];
     chunks: { chunkId: string; content: string; score: number }[];
     latencyMs: number;
+    traceId?: string;
   },
 ) {
+  const settingsRaw = await loadSettingsFromDb(prisma);
+  const settings = settingsRecordToAppSettings(settingsRaw);
+
+  if (settings.EVAL_BACKEND === 'mlflow') {
+    const client = createEvalServiceClient(settings.EVAL_SERVICE_URL);
+    if (client && (await client.health())) {
+      try {
+        const result = await client.traceAndEvaluate({
+          agentRunId: data.agentRunId,
+          question: data.question,
+          answer: data.answer,
+          citations: data.citations,
+          chunks: data.chunks,
+          latencyMs: data.latencyMs,
+          agentType: 'rag',
+          traceId: data.traceId,
+        });
+
+        const evaluation = await prisma.evaluation.create({
+          data: {
+            agentRunId: data.agentRunId,
+            groundedness: result.groundedness,
+            citationAccuracy: result.citationAccuracy,
+            relevance: result.relevance,
+            hallucinationFlag: result.hallucinationFlag,
+            mlflowRunId: result.mlflowRunId,
+            evalBackend: 'mlflow',
+            judgeScores: result.judgeScores as object,
+          },
+        });
+
+        return {
+          evaluationId: evaluation.id,
+          scores: result,
+          evalBackend: 'mlflow' as const,
+          mlflowRunId: result.mlflowRunId,
+        };
+      } catch (err) {
+        logger.warn({ err }, 'MLflow eval-service failed; falling back to heuristic');
+      }
+    } else {
+      logger.warn('EVAL_BACKEND=mlflow but eval-service unreachable; using heuristic');
+    }
+  }
+
   const scores = scoreEvaluation({
     question: data.question,
     answer: data.answer,
@@ -139,8 +186,14 @@ export async function processEvaluation(
       citationAccuracy: scores.citationAccuracy,
       relevance: scores.relevance,
       hallucinationFlag: scores.hallucinationFlag,
+      evalBackend: 'heuristic',
+      judgeScores: {
+        groundedness: { score: scores.groundedness, rationale: 'heuristic token overlap' },
+        relevance_to_query: { score: scores.relevance, rationale: 'heuristic token overlap' },
+        citation_accuracy: { score: scores.citationAccuracy, rationale: 'valid citation ids' },
+      },
     },
   });
 
-  return { evaluationId: evaluation.id, scores };
+  return { evaluationId: evaluation.id, scores, evalBackend: 'heuristic' as const };
 }

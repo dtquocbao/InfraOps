@@ -51,11 +51,27 @@ services:
       DATABASE_URL: postgresql://infraops:infraops@postgres:5432/infraops
       REDIS_URL: redis://redis:6379
       JWT_SECRET: infraops-dev-jwt-secret-min-16-chars
+      EVAL_SERVICE_URL: http://eval-service:8100
+      EVAL_BACKEND: heuristic
     depends_on:
       redis:
         condition: service_healthy
       api:
         condition: service_started
+      eval-service:
+        condition: service_started
+
+  eval-service:
+    build:
+      context: .
+      dockerfile: apps/eval-service/Dockerfile
+    environment:
+      MLFLOW_TRACKING_URI: ''
+      MLFLOW_EXPERIMENT_PATH: infraops-ai-eval
+      DATABRICKS_HOST: ''
+      DATABRICKS_TOKEN: ''
+    ports:
+      - "8100:8100"
 
   web:
     build:

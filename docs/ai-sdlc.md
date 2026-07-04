@@ -10,7 +10,7 @@ Lifecycle: **Discover → Design → Prototype → Evaluate → Pilot → Produc
 | RAG Assistant | **Pilot** | 15 seed docs, cited answers, eval harness |
 | Document pipeline | **Pilot** | Upload + seed + pgvector indexing |
 | Human Review | **Pilot** | Rules table, approve/reject, audit trail |
-| Evaluation harness | **Evaluate** | 15-question scorecard, MLflow optional |
+| Evaluation harness | **Pilot** | Heuristic or MLflow judges via eval-service sidecar |
 | IoT monitoring | **Pilot** | Simulator, heuristic / Model Serving scoring, LLM explain on flags |
 | Databricks pipeline | **Evaluate** | Notebooks + adapter; requires user workspace |
 | Databricks retrieval | **Pilot** | Feature flag `RETRIEVAL_BACKEND=databricks` |

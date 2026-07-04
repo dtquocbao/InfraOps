@@ -115,11 +115,37 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
   {
     key: 'MLFLOW_TRACKING_URI',
     label: 'MLflow Tracking URI',
-    description: 'MLflow server for eval experiment logging',
+    description: 'MLflow tracking URI (databricks or http://…); empty = local file store in eval-service',
     category: 'mlflow',
     defaultValue: '',
     isSecret: false,
   },
+  {
+    key: 'MLFLOW_EXPERIMENT_PATH',
+    label: 'MLflow Experiment Path',
+    description: 'Experiment name/path for agent evaluation traces',
+    category: 'mlflow',
+    defaultValue: '/Shared/infraops-ai-eval',
+    isSecret: false,
+  },
+  {
+    key: 'EVAL_BACKEND',
+    label: 'Evaluation Backend',
+    description: 'mlflow (eval-service judges) or heuristic (local overlap scorer)',
+    category: 'mlflow',
+    defaultValue: 'heuristic',
+    isSecret: false,
+    options: ['heuristic', 'mlflow'],
+  },
+  {
+    key: 'EVAL_SERVICE_URL',
+    label: 'Eval Service URL',
+    description: 'Internal URL for apps/eval-service (default http://localhost:8100)',
+    category: 'mlflow',
+    defaultValue: 'http://localhost:8100',
+    isSecret: false,
+  },
+
   {
     key: 'IOT_SCORING_BACKEND',
     label: 'IoT Scoring Backend',
@@ -174,6 +200,9 @@ export const AppSettingsSchema = z.object({
     .default('true')
     .transform((v) => v === 'true' || v === '1'),
   MLFLOW_TRACKING_URI: z.string().optional(),
+  MLFLOW_EXPERIMENT_PATH: z.string().default('/Shared/infraops-ai-eval'),
+  EVAL_BACKEND: z.enum(['heuristic', 'mlflow']).default('heuristic'),
+  EVAL_SERVICE_URL: z.string().default('http://localhost:8100'),
   IOT_SCORING_BACKEND: z.enum(['heuristic', 'model_serving']).default('heuristic'),
   IOT_MODEL_ENDPOINT_URL: z.string().optional(),
   IOT_MODEL_ENDPOINT_TOKEN: z.string().optional(),
@@ -251,6 +280,13 @@ export async function loadSettingsFromDb(
   }
   for (const row of rows) {
     map[row.key] = row.value;
+  }
+  // Process env overrides (docker-compose / CI) win over DB defaults
+  for (const def of SETTING_DEFINITIONS) {
+    const envVal = process.env[def.key];
+    if (envVal !== undefined && envVal !== '') {
+      map[def.key] = envVal;
+    }
   }
   return map;
 }

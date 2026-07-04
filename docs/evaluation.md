@@ -1,51 +1,101 @@
 # Evaluation Framework
 
-Automated scoring for every agent run plus an on-demand 15-question RAG scorecard.
+Evaluation is a **buy the judges, keep the orchestration** layer: NestJS/BullMQ still run agents; scoring is pluggable via `EVAL_BACKEND`.
 
-## Metrics (Section 16)
+## Why MLflow
 
-| Metric | Implementation | Stored in |
-|--------|----------------|-----------|
-| Groundedness | Token overlap: answer ↔ retrieved chunks | `evaluations.groundedness` |
-| Citation accuracy | Valid cited chunk IDs / total citations | `evaluations.citation_accuracy` |
-| Relevance | Token overlap: question ↔ answer | `evaluations.relevance` |
-| Hallucination flag | `groundedness < 0.45` with citations present | `evaluations.hallucination_flag` |
-| Retrieval hit rate | ≥1 chunk above similarity threshold | computed in harness |
-| Latency / cost | Per-run timing | `agent_runs.latency_ms` |
-| User rating | Reviewer approve (+1) / reject (-1) | `evaluations.user_rating` |
+The original heuristic scorer estimated groundedness and citation accuracy with token overlap. That was a reasonable placeholder, but it is not calibrated. Databricks-managed MLflow provides research-backed LLM judges and custom domain judges in natural language, while remaining **framework-agnostic** — traces can come from any orchestrator, including this NestJS stack. We did **not** migrate agent orchestration to Agent Bricks or Model Serving; only the evaluation step calls `apps/eval-service`.
 
-## Async evaluation
+## Architecture
 
-After each RAG query, an `evaluate_response` BullMQ job scores the response and writes to `evaluations`.
-
-## Eval harness
-
-```bash
-# Requires seeded Postgres (docker compose up)
-npm run eval
-
-# Against Databricks Gold layer
-RETRIEVAL_BACKEND=databricks npm run eval
+```
+agent_run completes
+  → BullMQ evaluate_response
+  → EVAL_BACKEND=mlflow?
+       yes → eval-service POST /trace → POST /evaluate/:mlflowRunId
+            → evaluations row (judge_scores + derived columns + mlflow_run_id)
+       no  → local scoreEvaluation() heuristic
+            → evaluations row (eval_backend=heuristic)
 ```
 
-Exit code **0** if pass rate ≥ 60%.
+| Component | Role |
+|-----------|------|
+| `apps/api` | Unchanged orchestration; enqueues `evaluate_response` |
+| `apps/worker` | Calls eval-service or heuristic; writes `evaluations` |
+| `apps/eval-service` | Python FastAPI sidecar: MLflow traces + judges |
 
-### Sample scorecard output (pgvector, seeded)
+## Feature flag
 
-Run after `docker compose up --build` completes seeding:
+| Setting | Default | Behavior |
+|---------|---------|----------|
+| `EVAL_BACKEND` | `heuristic` | Local overlap scorer (zero Python dependency) |
+| | `mlflow` | `eval-service` judges; falls back to heuristic if service is down |
+| `EVAL_SERVICE_URL` | `http://localhost:8100` | Sidecar base URL (`http://eval-service:8100` in Docker) |
+| `MLFLOW_TRACKING_URI` | empty | Local file store in eval-service; set `databricks` + host/token for workspace |
+| `MLFLOW_EXPERIMENT_PATH` | `/Shared/infraops-ai-eval` | Experiment name/path |
+
+Configure under **Admin → Settings → MLflow**.
+
+## Judges
+
+### Built-in (four)
+
+| Judge | Measures |
+|-------|----------|
+| **Correctness** | Answer aligns with retrieved evidence (proxy: groundedness + citations) |
+| **RelevanceToQuery** | Answer addresses the question |
+| **Safety** | No disallowed content |
+| **Groundedness** | Claims supported by retrieved chunks only |
+
+Guidelines text for groundedness (verbatim):
+
+> The response must only assert claims that are directly supported by the retrieved document chunks in the trace. Flag any claim not traceable to a specific chunk.
+
+When MLflow GenAI scorers are unavailable (common on Free Edition / local), eval-service uses **local proxies** that write the same `judge_scores` shape (`_source: local_proxy`).
+
+### Custom domain judges
+
+**contract_clause_fidelity** (instructions):
+
+> Analyze the trace for a contract analysis agent response. Verify that every clause, obligation, or risk flag mentioned in the outputs is actually present in the source document chunks retrieved in the trace. Penalize any invented clause or obligation not found in the retrieved context.
+
+**iot_explanation_fidelity** — explanations must reference actual sensor reading values, not pure boilerplate.
+
+## Data model
+
+`evaluations` columns:
+
+| Column | Purpose |
+|--------|---------|
+| `groundedness`, `citation_accuracy`, `relevance`, `hallucination_flag` | Dashboard-compatible metrics (derived from judges when `eval_backend=mlflow`) |
+| `eval_backend` | `heuristic` or `mlflow` |
+| `mlflow_run_id` | Trace id for drill-down |
+| `judge_scores` | Raw per-judge JSON |
+
+## Harness (`npm run eval`)
+
+1. Runs all 15 questions through the live RAG pipeline (same as before).
+2. If `EVAL_BACKEND=mlflow` and eval-service is healthy, scores via `POST /harness/run`.
+3. Otherwise uses the heuristic scorer.
+4. Prints a scorecard and, for MLflow mode, writes `apps/eval-service/harness-results/<timestamp>.json`.
+
+```bash
+docker compose up -d   # includes eval-service on :8100
+# Admin or env: EVAL_BACKEND=mlflow EVAL_SERVICE_URL=http://localhost:8100
+npm run eval
+```
+
+### Sample scorecard (heuristic, seeded pgvector)
 
 ```
 ═══════════════════════════════════════════════════
   InfraOps AI - RAG Evaluation Scorecard
   Retrieval backend: pgvector
+  Eval backend:      heuristic
 ═══════════════════════════════════════════════════
 
 ✓ q01: groundedness=0.42 citations=3 PASS
-✓ q02: groundedness=0.38 citations=2 PASS
-✓ q03: groundedness=0.35 citations=2 PASS
-✓ q04: groundedness=0.31 citations=2 PASS
-✓ q05: groundedness=0.40 citations=3 PASS
-... (15 questions total)
+…
 
 ── Summary ──────────────────────────────────────
   Pass rate:          12/15 (80%)
@@ -53,40 +103,34 @@ Run after `docker compose up --build` completes seeding:
   Avg citation acc:   1.00
   Avg relevance:      0.41
   Hallucination rate: 15%
-  Retrieval hit rate: 100%
-  Avg latency:        450ms
 ═══════════════════════════════════════════════════
 ```
 
-> **Note:** Exact numbers vary with embedding mode (OpenAI vs hash fallback) and LLM adapter. Re-run locally to capture your scorecard - paste into `docs/eval-results/latest.txt` for portfolio records.
+Pass criteria per question: `groundedness >= 0.3` and `citationAccuracy >= 0.5`. Suite exit code 0 if pass rate ≥ 60%.
 
-### Test questions
+## Admin dashboard
 
-Defined in `packages/shared/src/schemas/evaluation.ts` - 15 questions covering safety SOPs, contracts, engineering specs, and project reports for Substation Alpha.
+`GET /api/evaluations/summary` includes:
 
-## API
+- Aggregate metrics (unchanged)
+- `byBackend: { heuristic, mlflow }`
+- `recent[]` with `evalBackend` and `mlflowRunId` per evaluation
 
-- `GET /api/evaluations/summary` - aggregate metrics for Executive Dashboard
-- `GET /api/dashboard/executive` - full KPI bundle
+Admin UI shows backend counts and recent rows so heuristic vs MLflow provenance is visible.
 
-## MLflow integration
-
-When `MLFLOW_TRACKING_URI` is set:
-
-```
-Experiment: infraops-rag-eval
-Metrics: pass_rate, avg_groundedness, avg_citation_accuracy, avg_relevance,
-         hallucination_rate, retrieval_hit_rate, avg_latency_ms
-Parameter: retrieval_backend
-```
-
-Databricks-hosted MLflow uses the same `DATABRICKS_TOKEN` for auth.
-
-## Reproducing for portfolio
+## Running eval-service locally
 
 ```bash
-docker compose up -d
-npm run eval 2>&1 | tee docs/eval-results/latest.txt
+cd apps/eval-service
+pip install -e ".[dev]"
+uvicorn main:app --app-dir src --port 8100
+pytest
 ```
 
-Commit `latest.txt` after a successful run to freeze scorecard evidence.
+Docker: service `eval-service` on port **8100**.
+
+## Related
+
+- [iot-anomaly-model.md](./iot-anomaly-model.md) — separate Model Serving path for IoT scoring
+- [architecture.md](./architecture.md)
+- `apps/eval-service/`

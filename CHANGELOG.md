@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.1] - 2026-07-03 - MLflow Evaluation Upgrade
+
+### Added
+- `apps/eval-service` Python FastAPI sidecar (MLflow traces + built-in/custom judges)
+- `EVAL_BACKEND=mlflow|heuristic` feature flag with automatic heuristic fallback
+- `evaluations.mlflow_run_id`, `eval_backend`, `judge_scores` columns
+- Custom judges: `contract_clause_fidelity`, `iot_explanation_fidelity`
+- Harness JSON artifacts under `apps/eval-service/harness-results/`
+- Admin evaluation summary: backend counts and recent MLflow run ids
+- Docker Compose service `eval-service` on port 8100
+
+### Changed
+- Worker `evaluate_response` job calls eval-service when configured
+- `npm run eval` uses MLflow judges when eval-service is healthy
+- `docs/evaluation.md` rewritten for MLflow-backed evaluation
+
 ## [0.6.0] - 2026-07-03 - Model Serving IoT Anomaly Upgrade
 
 ### Added

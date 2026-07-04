@@ -84,6 +84,29 @@ export function AdminPage() {
           <p className="mt-2 text-sm text-gray-400">
             Avg latency: {evalSummary?.avgLatencyMs?.toFixed(0) ?? '-'}ms
           </p>
+          <p className="mt-2 text-sm text-gray-400">
+            Backend: heuristic {evalSummary?.byBackend?.heuristic ?? 0} · mlflow{' '}
+            {evalSummary?.byBackend?.mlflow ?? 0}
+          </p>
+          {evalSummary?.recent && evalSummary.recent.length > 0 && (
+            <div className="mt-4 space-y-2 border-t border-charcoal-700 pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Recent evaluations</p>
+              {evalSummary.recent.slice(0, 5).map((e: {
+                id: string;
+                evalBackend: string;
+                mlflowRunId?: string | null;
+                groundedness: number | null;
+              }) => (
+                <div key={e.id} className="flex items-center justify-between text-xs text-gray-400">
+                  <span>
+                    <span className="text-accent">{e.evalBackend}</span>
+                    {e.mlflowRunId ? ` · ${e.mlflowRunId.slice(0, 8)}…` : ''}
+                  </span>
+                  <span>g={(e.groundedness ?? 0).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

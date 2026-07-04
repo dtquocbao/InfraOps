@@ -11,6 +11,7 @@ export * from './tools/chunk-document';
 export * from './rag/pipeline';
 export * from './processing/document-processor';
 export * from './evaluation/scorer';
+export * from './evaluation/eval-service-client';
 export * from './feature-tests/suite';
 export * from './iot/features';
 export * from './iot/heuristic';
